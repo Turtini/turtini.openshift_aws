@@ -1,0 +1,53 @@
+---
+aws_region: us-east-1
+
+# Naming
+project_name: nasa-ocp-demo
+vpc_name: "{{ project_name }}-vpc"
+
+# Networking
+vpc_cidr: "10.0.0.0/16"
+azs:
+  - us-east-1a
+  - us-east-1b
+
+public_subnets:
+  - name: "{{ project_name }}-public1"
+    az: "{{ azs[0] }}"
+    cidr: "10.0.0.0/24"
+  - name: "{{ project_name }}-public2"
+    az: "{{ azs[1] }}"
+    cidr: "10.0.1.0/24"
+
+private_subnets:
+  - name: "{{ project_name }}-private1"
+    az: "{{ azs[0] }}"
+    cidr: "10.0.10.0/24"
+  - name: "{{ project_name }}-private2"
+    az: "{{ azs[1] }}"
+    cidr: "10.0.11.0/24"
+
+# NAT
+nat_gateway_name: "{{ project_name }}-natgw"
+
+# EC2 keypair (user can change this)
+ec2_keypair_name: "{{ project_name }}-key"
+
+# Security groups
+sg_nodes_name: "{{ project_name }}-nodes-sg"
+sg_bastion_name: "{{ project_name }}-bastion-sg"
+
+# Optional Route 53 hosted zone
+create_route53_zone: false
+route53_zone_name: "demo.turtini.com"
+
+# Tagging
+common_tags:
+  Project: "{{ project_name }}"
+  Owner: "Jason"
+  Environment: "demo"
+  Expires: "2026-02-15"
+
+# Preflight quota guidance (approx demo needs)
+# Adjust for your chosen instance families / size
+required_on_demand_vcpus: 32
