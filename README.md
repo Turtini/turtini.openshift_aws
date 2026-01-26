@@ -15,3 +15,6 @@ ansible-playbook -i localhost, playbooks/preflight.yml
 
 # 4) Build foundation
 ansible-playbook -i localhost, playbooks/foundation.yml
+
+# 5) Teardown DANGER: destroys the VPC and related resources created by the foundation playbook.
+ansible-playbook -i localhost, playbooks/teardown.yml -e confirm_destroy=true
