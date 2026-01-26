@@ -55,6 +55,10 @@ required_on_demand_vcpus: 32
 # Teardown safety
 confirm_destroy: false
 
+# Extra safety: print plan + require typed confirmation
+require_typed_confirmation: true
+typed_confirmation_value: ""   # override at runtime (recommended)
+
 # Optional teardown toggles
 delete_keypair: false
 delete_security_groups: true
