@@ -36,7 +36,7 @@
         vpc_id: "{{ vpc_info.vpcs[0].vpc_id }}"
 
     # -----------------------------
-    # Gather subnets (public/private)
+    # Gather subnets in VPC
     # -----------------------------
     - name: Gather subnets in VPC
       amazon.aws.ec2_vpc_subnet_info:
@@ -102,6 +102,66 @@
       when: natgw_info.result is defined
 
     # -----------------------------
+    # SAFE LIST + TYPED CONFIRMATION
+    # -----------------------------
+    - name: Gather internet gateways attached to VPC (for plan)
+      amazon.aws.ec2_vpc_igw_info:
+        filters:
+          attachment.vpc-id: "{{ vpc_id }}"
+      register: igw_info_plan
+
+    - name: Build safe-delete plan
+      ansible.builtin.set_fact:
+        teardown_plan:
+          vpc_name: "{{ vpc_name }}"
+          vpc_id: "{{ vpc_id }}"
+          region: "{{ aws_region }}"
+          nat_gateway_ids: "{{ nat_gateway_ids | default([]) }}"
+          nat_eip_allocation_ids: "{{ nat_eip_allocation_ids | default([]) }}"
+          route_table_ids: "{{ route_table_ids | default([]) }}"
+          subnet_ids: "{{ subnet_ids | default([]) }}"
+          internet_gateway_ids: "{{ igw_info_plan.internet_gateways | default([]) | map(attribute='internet_gateway_id') | list }}"
+          delete_security_groups: "{{ delete_security_groups | default(true) }}"
+          security_groups:
+            - "{{ sg_nodes_name }}"
+            - "{{ sg_bastion_name }}"
+          delete_keypair: "{{ delete_keypair | default(false) }}"
+          keypair_name: "{{ ec2_keypair_name }}"
+          delete_route53_zone_on_teardown: "{{ delete_route53_zone_on_teardown | default(false) }}"
+          route53_zone_name: "{{ route53_zone_name }}"
+
+    - name: Print SAFE LIST (copy/paste confirmation value from here)
+      ansible.builtin.debug:
+        msg:
+          - "================ SAFE DELETE PLAN ================"
+          - "Region: {{ teardown_plan.region }}"
+          - "VPC: {{ teardown_plan.vpc_name }} ({{ teardown_plan.vpc_id }})"
+          - "NAT Gateways: {{ teardown_plan.nat_gateway_ids }}"
+          - "NAT EIP Allocation IDs: {{ teardown_plan.nat_eip_allocation_ids }}"
+          - "Route Tables: {{ teardown_plan.route_table_ids }}"
+          - "Subnets: {{ teardown_plan.subnet_ids }}"
+          - "Internet Gateways: {{ teardown_plan.internet_gateway_ids }}"
+          - "Delete Security Groups: {{ teardown_plan.delete_security_groups }} ({{ teardown_plan.security_groups }})"
+          - "Delete Keypair: {{ teardown_plan.delete_keypair }} ({{ teardown_plan.keypair_name }})"
+          - "Delete Route53 Zone: {{ teardown_plan.delete_route53_zone_on_teardown }} ({{ teardown_plan.route53_zone_name }})"
+          - "--------------------------------------------------"
+          - "To continue, you will be asked to type the VPC ID exactly: {{ teardown_plan.vpc_id }}"
+          - "=================================================="
+
+    - name: Prompt for typed confirmation (must match VPC ID)
+      ansible.builtin.pause:
+        prompt: "Type the VPC ID to confirm deletion (exactly): {{ vpc_id }}"
+      register: typed_confirm
+      when: require_typed_confirmation | bool
+
+    - name: Fail if typed confirmation does not match
+      ansible.builtin.fail:
+        msg: "Confirmation mismatch. You typed '{{ typed_confirm.user_input }}' but expected '{{ vpc_id }}'. Aborting."
+      when:
+        - require_typed_confirmation | bool
+        - typed_confirm.user_input != vpc_id
+
+    # -----------------------------
     # Delete NAT gateways FIRST (stops hourly $)
     # -----------------------------
     - name: Delete NAT gateways (if present)
@@ -134,8 +194,7 @@
       when: (route_table_ids | default([]) | length) > 0
 
     # -----------------------------
-    # Detach & delete IGW (if we created it)
-    # We find IGWs attached to this VPC and remove them.
+    # Detach & delete IGW
     # -----------------------------
     - name: Gather internet gateways attached to VPC
       amazon.aws.ec2_vpc_igw_info:
@@ -190,7 +249,7 @@
       when: delete_keypair | bool
 
     # -----------------------------
-    # Delete Route 53 hosted zone (optional, dangerous)
+    # Delete Route 53 hosted zone (optional)
     # -----------------------------
     - name: Delete Route 53 hosted zone (optional)
       community.aws.route53_zone:
@@ -215,4 +274,5 @@
           deleted_nat_gateways: "{{ nat_gateway_ids | default([]) }}"
           released_eips: "{{ nat_eip_allocation_ids | default([]) }}"
           deleted_route_tables: "{{ route_table_ids | default([]) }}"
-          deleted_subnets: "{{ subnet_ids }}"
+          deleted_subnets: "{{ subnet_ids | default([]) }}"
+
