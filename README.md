@@ -27,9 +27,6 @@ ansible-playbook -i localhost, playbooks/teardown.yml \
 
 
 #Notes
-
-#NAT must be deleted before subnets (AWS won’t let you delete a subnet with NAT resources still attached).
-
-#Route 53 zone deletion can fail if there are records besides NS/SOA; that’s why it’s off by default.
-
-#If the user created extra resources inside the VPC (EC2 instances, ENIs, load balancers), VPC deletion will fail — and that’s correct behavior.
+NAT must be deleted before subnets (AWS won’t let you delete a subnet with NAT resources still attached).
+Route 53 zone deletion can fail if there are records besides NS/SOA; that’s why it’s off by default.
+If the user created extra resources inside the VPC (EC2 instances, ENIs, load balancers), VPC deletion will fail — and that’s correct behavior.
