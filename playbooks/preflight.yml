@@ -1,0 +1,68 @@
+---
+- name: Preflight checks for AWS OpenShift foundation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aws_env:
+      AWS_REGION: "{{ aws_region }}"
+      AWS_DEFAULT_REGION: "{{ aws_region }}"
+
+  tasks:
+    - name: Ensure aws cli is installed (used for quota checks)
+      ansible.builtin.command: aws --version
+      register: awscli_version
+      changed_when: false
+
+    - name: Validate AWS identity (STS)
+      ansible.builtin.command: aws sts get-caller-identity --output json
+      environment: "{{ aws_env }}"
+      register: sts_identity
+      changed_when: false
+
+    - name: Show caller identity
+      ansible.builtin.debug:
+        msg: "{{ (sts_identity.stdout | from_json) }}"
+
+    # Best-effort: On-Demand vCPU quota (L-1216C47A is common for "Running On-Demand Standard instances")
+    # Depending on account/region, you may need a different quota code.
+    - name: Get EC2 On-Demand vCPU quota (best-effort)
+      ansible.builtin.command: >
+        aws service-quotas get-service-quota
+        --service-code ec2
+        --quota-code L-1216C47A
+        --output json
+      environment: "{{ aws_env }}"
+      register: quota_vcpu
+      changed_when: false
+      failed_when: false
+
+    - name: Parse vCPU quota if available
+      ansible.builtin.set_fact:
+        on_demand_vcpu_quota: >-
+          {{
+            (quota_vcpu.stdout | from_json).Quota.Value
+            if quota_vcpu.rc == 0 else
+            omit
+          }}
+
+    - name: Warn if quota check could not be retrieved
+      ansible.builtin.debug:
+        msg: "Could not retrieve vCPU quota via service-quotas (this can vary by account). Proceeding without hard enforcement."
+      when: quota_vcpu.rc != 0
+
+    - name: Fail if On-Demand vCPU quota is below required threshold
+      ansible.builtin.fail:
+        msg: "On-Demand vCPU quota ({{ on_demand_vcpu_quota }}) is below required_on_demand_vcpus ({{ required_on_demand_vcpus }}). Request a quota increase or lower cluster sizing."
+      when:
+        - quota_vcpu.rc == 0
+        - on_demand_vcpu_quota is defined
+        - on_demand_vcpu_quota | float < required_on_demand_vcpus | float
+
+    - name: Optional Route53 permission probe (list hosted zones)
+      ansible.builtin.command: aws route53 list-hosted-zones --max-items 1 --output json
+      environment: "{{ aws_env }}"
+      register: r53_probe
+      changed_when: false
+      when: create_route53_zone | bool
