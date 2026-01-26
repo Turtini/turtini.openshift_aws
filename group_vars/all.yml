@@ -51,3 +51,11 @@ common_tags:
 # Preflight quota guidance (approx demo needs)
 # Adjust for your chosen instance families / size
 required_on_demand_vcpus: 32
+
+# Teardown safety
+confirm_destroy: false
+
+# Optional teardown toggles
+delete_keypair: false
+delete_security_groups: true
+delete_route53_zone_on_teardown: false
