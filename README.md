@@ -18,3 +18,9 @@ ansible-playbook -i localhost, playbooks/foundation.yml
 
 # 5) Teardown DANGER: destroys the VPC and related resources created by the foundation playbook.
 ansible-playbook -i localhost, playbooks/teardown.yml -e confirm_destroy=true
+
+#Optional toggles:
+ansible-playbook -i localhost, playbooks/teardown.yml \
+  -e confirm_destroy=true \
+  -e delete_keypair=true \
+  -e delete_route53_zone_on_teardown=false
