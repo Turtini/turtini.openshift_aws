@@ -1,4 +1,4 @@
-# Deploy-an-OpenShift-Cluster-on-AWS-using-Ansible
+# turtini.openshift_aws
 Deploy an OpenShift Cluster on AWS using Ansible
 
 # 1) Install requirements
