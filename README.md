@@ -1,4 +1,7 @@
 # turtini.openshift_aws
+
+🔗 **Canonical URL:** https://turtini.com/github/openshift-aws
+
 Deploy an OpenShift Cluster on AWS using Ansible
 
 # 1) Install requirements
