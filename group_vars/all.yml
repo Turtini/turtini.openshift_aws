@@ -1,12 +1,17 @@
----
 aws_region: us-east-1
 
-# Naming
-project_name: nasa-ocp-demo
+# -----------------------------------------------------------------------------
+# Project Naming
+# Generic public sector / GovCloud-style OpenShift demo
+# -----------------------------------------------------------------------------
+project_name: govcloud-ocp-demo
 vpc_name: "{{ project_name }}-vpc"
 
+# -----------------------------------------------------------------------------
 # Networking
+# -----------------------------------------------------------------------------
 vpc_cidr: "10.0.0.0/16"
+
 azs:
   - us-east-1a
   - us-east-1b
@@ -27,39 +32,57 @@ private_subnets:
     az: "{{ azs[1] }}"
     cidr: "10.0.11.0/24"
 
+# -----------------------------------------------------------------------------
 # NAT
+# -----------------------------------------------------------------------------
 nat_gateway_name: "{{ project_name }}-natgw"
 
-# EC2 keypair (user can change this)
+# -----------------------------------------------------------------------------
+# EC2 Access
+# User should override keypair name per environment
+# -----------------------------------------------------------------------------
 ec2_keypair_name: "{{ project_name }}-key"
 
-# Security groups
+# -----------------------------------------------------------------------------
+# Security Groups
+# -----------------------------------------------------------------------------
 sg_nodes_name: "{{ project_name }}-nodes-sg"
 sg_bastion_name: "{{ project_name }}-bastion-sg"
 
-# Optional Route 53 hosted zone
+# -----------------------------------------------------------------------------
+# Optional Route 53 Hosted Zone (demo only)
+# -----------------------------------------------------------------------------
 create_route53_zone: false
 route53_zone_name: "demo.turtini.com"
 
+# -----------------------------------------------------------------------------
 # Tagging
+# Designed to align with public sector tagging standards
+# -----------------------------------------------------------------------------
 common_tags:
   Project: "{{ project_name }}"
-  Owner: "Jason"
+  Owner: "platform-team"
   Environment: "demo"
-  Expires: "2026-02-15"
+  Expires: "YYYY-MM-DD"   # override at runtime or via inventory
 
-# Preflight quota guidance (approx demo needs)
-# Adjust for your chosen instance families / size
+# -----------------------------------------------------------------------------
+# Preflight Quota Guidance
+# Approximate vCPU needs for a small OpenShift demo cluster
+# -----------------------------------------------------------------------------
 required_on_demand_vcpus: 32
 
-# Teardown safety
+# -----------------------------------------------------------------------------
+# Teardown Safety
+# -----------------------------------------------------------------------------
 confirm_destroy: false
 
-# Extra safety: print plan + require typed confirmation
+# Require explicit operator confirmation before teardown
 require_typed_confirmation: true
 typed_confirmation_value: ""   # override at runtime (recommended)
 
-# Optional teardown toggles
+# -----------------------------------------------------------------------------
+# Optional Teardown Toggles
+# -----------------------------------------------------------------------------
 delete_keypair: false
 delete_security_groups: true
 delete_route53_zone_on_teardown: false
