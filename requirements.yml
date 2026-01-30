@@ -1,4 +1,7 @@
 ---
 collections:
+  # AWS modules (VPC, subnets, route tables, security groups, etc.)
   - name: amazon.aws
+
+  # Supplemental AWS modules (e.g., Route 53 zone management)
   - name: community.aws
