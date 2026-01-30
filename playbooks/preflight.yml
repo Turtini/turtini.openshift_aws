@@ -4,34 +4,59 @@
   connection: local
   gather_facts: false
 
+  # -----------------------------------------------------------------------------
+  # Purpose
+  # Validate basic AWS access before attempting to create OpenShift foundation infra.
+  #
+  # What this playbook checks:
+  # - AWS CLI present (used for quota and permission probes)
+  # - Caller identity (STS) to confirm credentials/role
+  # - Best-effort EC2 On-Demand vCPU quota check (service-quotas)
+  # - Optional: Route 53 permission probe (if hosted zone creation is enabled)
+  #
+  # What this playbook does NOT do:
+  # - It does not validate every permission needed to build OpenShift.
+  # - It does not guarantee quota codes match your account (quota codes can vary).
+  # -----------------------------------------------------------------------------
+
   vars:
     aws_env:
       AWS_REGION: "{{ aws_region }}"
       AWS_DEFAULT_REGION: "{{ aws_region }}"
 
+    # Common EC2 Service Quotas code for "Running On-Demand Standard instances"
+    # Note: quota codes vary; treat as best-effort guidance.
+    ec2_ondemand_vcpu_quota_code: "L-1216C47A"
+
   tasks:
-    - name: Ensure aws cli is installed (used for quota checks)
+    # ---------------------------------------------------------------------------
+    # CLI + Identity
+    # ---------------------------------------------------------------------------
+    - name: Ensure AWS CLI is installed (required for quota checks)
       ansible.builtin.command: aws --version
       register: awscli_version
       changed_when: false
 
-    - name: Validate AWS identity (STS)
+    - name: Validate AWS identity (STS get-caller-identity)
       ansible.builtin.command: aws sts get-caller-identity --output json
       environment: "{{ aws_env }}"
       register: sts_identity
       changed_when: false
 
-    - name: Show caller identity
+    - name: Show caller identity (Account + Arn)
       ansible.builtin.debug:
-        msg: "{{ (sts_identity.stdout | from_json) }}"
+        msg:
+          Account: "{{ (sts_identity.stdout | from_json).Account }}"
+          Arn: "{{ (sts_identity.stdout | from_json).Arn }}"
 
-    # Best-effort: On-Demand vCPU quota (L-1216C47A is common for "Running On-Demand Standard instances")
-    # Depending on account/region, you may need a different quota code.
+    # ---------------------------------------------------------------------------
+    # Quotas (best-effort)
+    # ---------------------------------------------------------------------------
     - name: Get EC2 On-Demand vCPU quota (best-effort)
       ansible.builtin.command: >
         aws service-quotas get-service-quota
         --service-code ec2
-        --quota-code L-1216C47A
+        --quota-code {{ ec2_ondemand_vcpu_quota_code }}
         --output json
       environment: "{{ aws_env }}"
       register: quota_vcpu
@@ -47,22 +72,58 @@
             omit
           }}
 
-    - name: Warn if quota check could not be retrieved
+    - name: Quota note (could not retrieve via service-quotas)
       ansible.builtin.debug:
-        msg: "Could not retrieve vCPU quota via service-quotas (this can vary by account). Proceeding without hard enforcement."
+        msg: |
+          Could not retrieve EC2 On-Demand vCPU quota via service-quotas.
+          This can vary by account, permissions, region, or quota code.
+
+          Next steps:
+          - Confirm you have permissions for service-quotas:GetServiceQuota
+          - Check quotas in AWS Console (Service Quotas -> EC2)
+          - If you know your correct quota code, set:
+            ec2_ondemand_vcpu_quota_code=<your-code>
       when: quota_vcpu.rc != 0
+
+    - name: Show On-Demand vCPU quota (if retrieved)
+      ansible.builtin.debug:
+        msg:
+          quota_code: "{{ ec2_ondemand_vcpu_quota_code }}"
+          on_demand_vcpu_quota: "{{ on_demand_vcpu_quota }}"
+          required_on_demand_vcpus: "{{ required_on_demand_vcpus }}"
+      when:
+        - quota_vcpu.rc == 0
+        - on_demand_vcpu_quota is defined
 
     - name: Fail if On-Demand vCPU quota is below required threshold
       ansible.builtin.fail:
-        msg: "On-Demand vCPU quota ({{ on_demand_vcpu_quota }}) is below required_on_demand_vcpus ({{ required_on_demand_vcpus }}). Request a quota increase or lower cluster sizing."
+        msg: |
+          On-Demand vCPU quota ({{ on_demand_vcpu_quota }}) is below required_on_demand_vcpus ({{ required_on_demand_vcpus }}).
+
+          Options:
+          - Request a quota increase in AWS Service Quotas (EC2)
+          - Reduce cluster sizing / instance families
+          - Use a region with higher available quota
       when:
         - quota_vcpu.rc == 0
         - on_demand_vcpu_quota is defined
         - on_demand_vcpu_quota | float < required_on_demand_vcpus | float
 
-    - name: Optional Route53 permission probe (list hosted zones)
+    # ---------------------------------------------------------------------------
+    # Optional: Route 53 probe
+    # Only run if hosted zone creation is enabled in vars.
+    # ---------------------------------------------------------------------------
+    - name: Optional Route 53 permission probe (list hosted zones)
       ansible.builtin.command: aws route53 list-hosted-zones --max-items 1 --output json
       environment: "{{ aws_env }}"
       register: r53_probe
       changed_when: false
       when: create_route53_zone | bool
+
+    - name: Route 53 probe result (debug)
+      ansible.builtin.debug:
+        msg: "Route 53 probe succeeded (permission likely OK to list zones)."
+      when:
+        - create_route53_zone | bool
+        - r53_probe is defined
+        - r53_probe.rc == 0
