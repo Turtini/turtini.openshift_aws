@@ -1,2 +1,12 @@
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+# This role relies on Ansible collections for AWS resource management
+# and the AWS Python SDKs used by those modules.
+
+# Install Ansible collections (defined in requirements.yml)
 ansible-galaxy collection install -r requirements.yml
+
+# Install Python AWS SDKs required by amazon.aws and community.aws modules
 python3 -m pip install boto3 botocore
+
